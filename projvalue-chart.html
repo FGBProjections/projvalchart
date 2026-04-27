@@ -159,7 +159,7 @@ function doGet() {
     </div>
 
     <button class="setup-btn" onclick="startChart()">Launch Chart →</button>
-    <div id="error-msg"></div>
+    <div id="setup-overlay" style="display:none;">
   </div>
 </div>
 
@@ -213,7 +213,7 @@ const series = chart.addAreaSeries({
 new ResizeObserver(() => chart.applyOptions({ width: chartEl.offsetWidth })).observe(chartEl);
 
 // ── State ────────────────────────────────────────────────────
-let scriptUrl = '';
+let scriptUrl = 'https://script.google.com/macros/s/YOUR_URL_HERE/exec';
 let allData   = [];
 
 const fmt = n => n == null ? '—' :
@@ -272,21 +272,10 @@ async function fetchLog() {
 }
 
 // ── Start ────────────────────────────────────────────────────
-function startChart() {
-  const url  = document.getElementById('inp-url').value.trim();
-  const name = document.getElementById('inp-name').value.trim() || 'PROJVALUE SUM';
-  const err  = document.getElementById('error-msg');
-
-  if (!url.startsWith('https://script.google.com')) {
-    err.textContent = '⚠ URL must start with https://script.google.com…';
-    err.style.display = 'block'; return;
-  }
-  scriptUrl = url;
-  document.getElementById('ticker-name').textContent = name.toUpperCase();
-  document.getElementById('setup-overlay').style.display = 'none';
-  fetchLog();
-  setInterval(fetchLog, 5 * 60 * 1000);
-}
-</script>
+// Auto-start — no setup screen
+const scriptUrl = 'https://script.google.com/macros/s/YOUR_URL_HERE/exec';
+document.getElementById('ticker-name').textContent = 'PROJVALUE SUM';
+fetchLog();
+setInterval(fetchLog, 5 * 60 * 1000);
 </body>
 </html>
