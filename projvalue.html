@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ProjValue Tracker</title>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0c0f;--surface:#111318;--border:#1e2128;--muted:#3a3f4a;
+    --text:#e8eaf0;--sub:#6b7280;--green:#00d97e;--red:#ff4d6a;--accent:#3b82f6;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:40px 20px;}
+
+  .topbar{width:100%;max-width:900px;display:flex;align-items:flex-start;
+    justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:16px;}
+  .ticker-label{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--sub);margin-bottom:4px;}
+  #ticker-name{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;}
+  .price-block{text-align:right;}
+  #current-val{font-family:'IBM Plex Mono',monospace;font-size:38px;font-weight:600;
+    letter-spacing:-.02em;line-height:1;}
+  #val-change{font-family:'IBM Plex Mono',monospace;font-size:13px;margin-top:5px;font-weight:500;}
+  .up{color:var(--green)}.down{color:var(--red)}.flat{color:var(--sub)}
+
+  .stats-row{width:100%;max-width:900px;display:flex;gap:1px;background:var(--border);
+    border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:16px;}
+  .stat{flex:1;background:var(--surface);padding:12px 16px;display:flex;flex-direction:column;gap:3px;}
+  .stat-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--sub);
+    font-family:'IBM Plex Mono',monospace;}
+  .stat-value{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:500;color:var(--text);}
+
+  .chart-wrapper{width:100%;max-width:900px;background:var(--surface);
+    border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+  .chart-toolbar{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 20px;border-bottom:1px solid var(--border);}
+  .chart-title{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--sub);}
+  .live-badge{display:flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;
+    font-size:11px;color:var(--green);}
+  .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);
+    animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+  #chart{width:100%;height:380px;}
+
+  .footer{width:100%;max-width:900px;display:flex;justify-content:space-between;
+    align-items:center;margin-top:14px;padding:0 2px;}
+  #last-updated{font-size:11px;color:var(--sub);font-family:'IBM Plex Mono',monospace;}
+  .source-label{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+</style>
+</head>
+<body>
+
+<!-- DASHBOARD -->
+<div class="topbar">
+  <div>
+    <div class="ticker-label">Live Sum Tracker</div>
+    <div id="ticker-name">PROJVALUE SUM</div>
+  </div>
+  <div class="price-block">
+    <div id="current-val" class="flat">—</div>
+    <div id="val-change" class="flat">— / —</div>
+  </div>
+</div>
+
+<div class="stats-row">
+  <div class="stat"><span class="stat-label">Session Open</span><span class="stat-value" id="stat-open">—</span></div>
+  <div class="stat"><span class="stat-label">High</span><span class="stat-value" id="stat-high">—</span></div>
+  <div class="stat"><span class="stat-label">Low</span><span class="stat-value" id="stat-low">—</span></div>
+  <div class="stat"><span class="stat-label">Snapshots</span><span class="stat-value" id="stat-pts">—</span></div>
+</div>
+
+<div class="chart-wrapper">
+  <div class="chart-toolbar">
+    <span class="chart-title">ProjValue Sum — 5 min intervals</span>
+    <span class="live-badge"><span class="live-dot"></span> LIVE</span>
+  </div>
+  <div id="chart"></div>
+</div>
+
+<div class="footer">
+  <span id="last-updated">Loading…</span>
+  <span class="source-label">SRC: GOOGLE SHEETS / LOG</span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  PASTE YOUR APPS SCRIPT URL ON THE LINE BELOW
+//  (replace everything between the single quotes)
+// ═══════════════════════════════════════════════════════════
+const scriptUrl = 'https://script.google.com/macros/library/d/1m9tM9jtr9JJbhhNoVRH9R8pX8qhnA3WOmqmq-_BWVDZzdKk74EWuAL2U/1';
+// ═══════════════════════════════════════════════════════════
+
+// ── Chart setup ─────────────────────────────────────────────
+const chartEl = document.getElementById('chart');
+const chart = LightweightCharts.createChart(chartEl, {
+  layout:    { background: { color: '#111318' }, textColor: '#6b7280' },
+  grid:      { vertLines: { color: '#1e2128' }, horzLines: { color: '#1e2128' } },
+  crosshair: { vertLine: { color: '#3a3f4a', labelBackgroundColor: '#1e2128' },
+               horzLine: { color: '#3a3f4a', labelBackgroundColor: '#1e2128' } },
+  rightPriceScale: { borderColor: '#1e2128' },
+  timeScale: { borderColor: '#1e2128', timeVisible: true, secondsVisible: false },
+});
+const series = chart.addAreaSeries({
+  lineColor:'#3b82f6', topColor:'rgba(59,130,246,.18)',
+  bottomColor:'rgba(59,130,246,.01)', lineWidth:2, priceLineVisible:false,
+});
+new ResizeObserver(() => chart.applyOptions({ width: chartEl.offsetWidth })).observe(chartEl);
+
+// ── Helpers ──────────────────────────────────────────────────
+const fmt = n => n == null ? '—' :
+  Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function updateUI(data) {
+  if (!data.length) return;
+  const vals = data.map(d => d.value);
+  const last = vals.at(-1), open = vals[0];
+  const high = Math.max(...vals), low = Math.min(...vals);
+  const chg  = last - open;
+  const pct  = ((chg / Math.abs(open || 1)) * 100).toFixed(2);
+  const dir  = chg > 0 ? 'up' : chg < 0 ? 'down' : 'flat';
+  const sign = chg >= 0 ? '+' : '';
+
+  document.getElementById('current-val').textContent = fmt(last);
+  document.getElementById('current-val').className   = dir;
+  document.getElementById('val-change').textContent  = `${sign}${fmt(chg)}  (${sign}${pct}%)`;
+  document.getElementById('val-change').className    = dir;
+  document.getElementById('stat-open').textContent   = fmt(open);
+  document.getElementById('stat-high').textContent   = fmt(high);
+  document.getElementById('stat-low').textContent    = fmt(low);
+  document.getElementById('stat-pts').textContent    = data.length;
+
+  series.applyOptions({
+    lineColor: chg >= 0 ? '#00d97e' : '#ff4d6a',
+    topColor:  chg >= 0 ? 'rgba(0,217,126,.16)' : 'rgba(255,77,106,.16)',
+  });
+  document.getElementById('last-updated').textContent =
+    'Last updated: ' + new Date().toLocaleTimeString();
+}
+
+// ── Fetch from Log sheet ─────────────────────────────────────
+async function fetchLog() {
+  try {
+    const rows = await (await fetch(scriptUrl)).json();
+    if (!Array.isArray(rows) || rows.length < 2) return;
+
+    const seen = new Set();
+    const allData = [];
+    for (let i = 1; i < rows.length; i++) {
+      const ts  = new Date(rows[i][0]);
+      const val = parseFloat(rows[i][1]);
+      if (isNaN(ts.getTime()) || isNaN(val)) continue;
+      const t = Math.floor(ts.getTime() / 1000);
+      if (seen.has(t)) continue;
+      seen.add(t);
+      allData.push({ time: t, value: val });
+    }
+    allData.sort((a, b) => a.time - b.time);
+    series.setData(allData);
+    updateUI(allData);
+  } catch(e) {
+    document.getElementById('last-updated').textContent = 'Fetch failed — retrying…';
+  }
+}
+
+// ── Auto-start ───────────────────────────────────────────────
+fetchLog();
+setInterval(fetchLog, 5 * 60 * 1000);
+</script>
+</body>
+</html>
